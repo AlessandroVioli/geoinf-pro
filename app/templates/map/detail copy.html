@@ -1,0 +1,92 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <title>{{ map.name }} - LULC Map Details</title>
+    <link
+      rel="stylesheet"
+      href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css"
+    />
+    <style>
+      table {
+        width: 100%;
+        border-collapse: collapse;
+        margin-bottom: 20px;
+      }
+
+      th,
+      td {
+        border: 1px solid #ddd;
+        padding: 8px;
+        text-align: left;
+      }
+
+      th {
+        background-color: #f2f2f2;
+      }
+
+      h2,
+      h3,
+      h4 {
+        margin-top: 20px;
+      }
+
+      .supported-types {
+        margin-top: 20px;
+        margin-bottom: 20px;
+      }
+      .type-label {
+        background-color: #70d768;
+        padding: 5px 10px;
+        border-radius: 5px;
+        margin-bottom: 20px;
+        margin-right: 10px;
+      }
+
+      .meta {
+        background-color: #f4f0f0;
+        padding: 20px;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="container">
+      <h1>{{ map.name }}</h1>
+      <div class="supported-types">
+        {% for type in map.supported_lulc_types %}
+        <span class="type-label">{{ type.name }} </span>
+        {% endfor %}
+      </div>
+      <div class="meta">
+        <p><strong>Description:</strong></p>
+        <p>{{ map.description }}</p>
+        <p><strong>Provider:</strong> {{ map.provider }}</p>
+        <p>
+          <strong>Homepage:</strong>
+          <a href="{{map.homepage_url }}">{{ map.homepage_url }}</a>
+        </p>
+        <p><strong>Resolution:</strong> {{ map.resolution }} m</p>
+        <p><strong>CRS:</strong>{{map.crs}}</p>
+        <p><strong>Coverage:</strong> {{ map.coverage.name }}</p>
+        <div class="citation-block">
+          <p><strong>Citation:</strong></p>
+          {{ map.citation | replace('\n', '<br />') |safe}}
+        </div>
+      </div>
+
+      {% if versions %}
+      <div class="versions-block">
+        <h2>Versions</h2>
+        {% for version in versions %}
+        <h3>{{ version.version}}</h3>
+        <ul>
+          <li><strong>Temporal Extent:</strong> {{ version.temporal_extent|join(', ')}}</li>
+          <li><strong>Accuracy:</strong> {{version.accuracy}}</li>
+        </ul>
+        <h4>Legend</h4>
+        {{version.legend.legend_text| replace('\\r\\n', '<br />') |safe}} {%
+        endfor %}
+      </div>
+      {% endif %}
+    </div>
+  </body>
+</html>

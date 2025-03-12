@@ -1,0 +1,226 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <title>LULC Map Viewer</title>
+    <link rel="stylesheet" href="../static/leaflet/leaflet.css" />
+    <link rel="stylesheet" href="../static/leaflet/leaflet.draw.css" />
+    <link
+      rel="stylesheet"
+      href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css"
+    />
+    <script src="../static/leaflet/leaflet.js"></script>
+    <script src="../static/leaflet/leaflet.draw.js"></script>
+    <style>
+      #map {
+        height: 88vh;
+      }
+
+      .custom-popup {
+        overflow: auto;
+        padding: 10px;
+        text-align: left;
+        height: 50vh;
+
+        table {
+          border-collapse: collapse;
+          width: 100%;
+        }
+        th,
+        td {
+          border: 1px solid #ddd;
+          padding: 8px;
+          text-align: left;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <h1>Open LULC Map</h1>
+    <div style="text-align: right;margin-bottom: 10px;"><a href="/admin">Go to the admin page</a></div>
+    <div id="map"></div>
+
+    <h3>Datasets</h3>
+    <ul id="dataset-list"></ul>
+
+    <script>
+      // Initialize the map
+      var osmUrl = 'http://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
+            osmAttrib = '&copy; <a href="http://openstreetmap.org/copyright">OpenStreetMap</a> contributors',
+            osm = L.tileLayer(osmUrl, { maxZoom: 18, attribution: osmAttrib }),
+            map = new L.Map('map', { center: new L.LatLng(51.505, -0.04), zoom: 3 }),
+            drawnItems = L.featureGroup().addTo(map);
+    L.control.layers({
+        'osm': osm.addTo(map),
+        "google": L.tileLayer('http://www.google.cn/maps/vt?lyrs=s@189&gl=cn&x={x}&y={y}&z={z}', {
+            attribution: 'google'
+        })
+    }, { 'drawlayer': drawnItems }, { position: 'topleft', collapsed: false }).addTo(map);
+
+      // Fetch and display dataset list
+      fetch("/api/maps") // Assuming your Flask API returns JSON
+        .then((response) => response.json())
+        .then((maps) => {
+          const datasetList = document.getElementById("dataset-list");
+          maps.forEach((map) => {
+            const aItem = document.createElement("a")
+            aItem.href = "/maps/"+map.id
+            aItem.textContent = map.name
+            const listItem = document.createElement("li");
+            //listItem.textContent = map.name;
+            listItem.appendChild(aItem)
+            datasetList.appendChild(listItem);
+          });
+        });
+
+      // listen the click event on map
+      /*map.on("click", function (e) {
+        // get coordinates
+        let lon = e.latlng.lng;
+        let lat = e.latlng.lat;
+        // query
+        fetch("/api/maps/query/point?lon=" + lon + "&lat=" + lat)
+          .then((response) => response.json())
+          .then((data) => {
+            // display
+            let popupContent = "<h3>Related HRLC Maps</h3>";
+            popupContent += `<p><span class="fa fa-map-marker"></span> ${Math.abs(
+              lat
+            ).toFixed(2)}°${lat > 0 ? "N" : "S"}, ${Math.abs(lon).toFixed(2)}°${
+              lon < 0 ? "W" : "E"
+            }</p>`;
+
+            let yearData = data.data;
+            if (yearData) {
+              popupContent += "<table>";
+              popupContent +=
+                "<thead><tr><th>Year</th><th>Map Count</th><th>Map Name</th></tr></thead>";
+              popupContent += "<tbody>";
+
+              for (let key in yearData) {
+                let mapList = yearData[key];
+                popupContent +=
+                  "<tr><td>" +
+                  key +
+                  "</td><td>" +
+                  mapList.length +
+                  "</td><td>" +
+                  mapList.join(", ") +
+                  "</td></tr>";
+              }
+
+              popupContent += "</tbody></table>";
+            } else {
+              popupContent += "No matching HRLC Maps found.";
+            }
+
+            // 显示 popup
+            L.popup({
+              className: "custom-popup",
+              closeButton: false,
+            })
+              .setContent(popupContent)
+              .setLatLng(e.latlng)
+              .openOn(map);
+          });
+      });
+
+      */
+      // 添加交互区域
+      // FeatureGroup is to store editable layers
+      var drawnItems = new L.FeatureGroup();
+      map.addLayer(drawnItems);
+      var drawControl = new L.Control.Draw({
+        draw: {
+          // only rectangle and marker allowed
+          polygon: false,
+          polyline: false,
+          circle: false,
+          circlemarker: false,
+        },
+        edit: {
+          featureGroup: drawnItems,
+        },
+      });
+      map.addControl(drawControl);
+
+      // 监听选中区域事件
+      map.on("draw:created", function (e) {
+        //console.log(e.layer.toGeoJSON())
+        map.addLayer(e.layer);
+        var type = e.layerType;
+        var url = "/api/maps/query/region";
+        var latlng, payload;
+        if (type === "marker") {
+          url = "/api/maps/query/point";
+          latlng = e.layer.getLatLng();
+          payload = { coords: latlng };
+        } else {
+          latlng = e.layer.getLatLngs()[0][0];
+          payload = { coords: e.layer.toGeoJSON()["geometry"] };
+        }
+        //console.log(payload, url, latlng)
+
+        // query
+        fetch(url, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify(payload),
+        })
+          .then((data) => {
+            if (!data.ok) {
+              throw Error(data.status);
+            }
+            return data.json();
+          })
+          .then((data) => {
+            console.log(data);
+            // display
+            let popupContent = "<h3>Related HRLC Maps</h3>";
+            if (data.coordinate) {
+              const lat = data.coordinate.lat, lon = data.coordinate.lon;
+              popupContent += `<p><span class="fa fa-map-marker"></span> ${Math.abs(
+                lat
+              ).toFixed(2)}°${lat > 0 ? "N" : "S"}, ${Math.abs(lon).toFixed(
+                2
+              )}°${lon < 0 ? "W" : "E"}</p>`;
+            }
+
+            let yearData = data.data;
+            if (yearData) {
+              popupContent += "<table>";
+              popupContent +=
+                "<thead><tr><th>Year</th><th>Map Count</th><th>Map Name</th></tr></thead>";
+              popupContent += "<tbody>";
+
+              for (let key in yearData) {
+                let mapList = yearData[key];
+                popupContent +=
+                  "<tr><td>" +
+                  key +
+                  "</td><td>" +
+                  mapList.length +
+                  "</td><td>" +
+                  mapList.join(", ") +
+                  "</td></tr>";
+              }
+
+              popupContent += "</tbody></table>";
+            } else {
+              popupContent += "No matching HRLC Maps found.";
+            }
+
+            // 显示 popup
+            L.popup({
+              className: "custom-popup",
+              closeButton: false,
+            })
+              .setContent(popupContent)
+              .setLatLng(latlng)
+              .openOn(map);
+          });
+      });
+    </script>
+  </body>
+</html>

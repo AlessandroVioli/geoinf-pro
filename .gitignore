@@ -1,0 +1,38 @@
+# Built files and executables
+__pycache__/
+*.pyc
+*.pyo
+*.egg-info/
+*.so
+*.exe
+
+# Database files
+*.db
+*.sqlite3
+#*.sql
+
+# Virtual environment files
+env/
+venv/
+
+# Ignore logs
+logs/
+*.log
+
+# Temporary files
+*.tmp
+
+# Output files
+*.out
+
+# Flask-Admin templates (generated)
+templates_c/
+
+# Other generated files
+*.json
+*.yaml
+*.pickle
+
+# Sensitive information
+secrets.py
+.env

@@ -1,0 +1,12 @@
+{% extends "base.html" %}
+{% block content %}
+<style>
+    #svg-container {
+        margin: 20px;
+    }
+</style>
+<div id="svg-container">
+    <h2>Workflow of {{name}}</h2>
+    <img src="../../static/workflow/{{svg_name}}" style=" width: 100%;">
+</div>
+  {% endblock %}

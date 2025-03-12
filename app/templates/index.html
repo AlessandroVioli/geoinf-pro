@@ -1,0 +1,488 @@
+{% extends "base.html" %} {% block external_link %}
+<link rel="stylesheet" href="../static/leaflet/leaflet.css" />
+<link rel="stylesheet" href="../static/leaflet/leaflet.draw.css" />
+<link
+  rel="stylesheet"
+  href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css"
+/>
+<style>
+  #map {
+    width: 100%;
+    height: 88vh;
+  }
+
+  .custom-popup {
+    overflow: auto;
+    padding: 10px;
+    text-align: left;
+    height: 50vh;
+
+    table {
+      border-collapse: collapse;
+      width: 100%;
+    }
+    th,
+    td {
+      border: 1px solid #ddd;
+      padding: 8px;
+      text-align: left;
+    }
+  }
+
+  .section {
+    margin: 10px;
+  }
+
+  #fileInput {
+    margin: 10px;
+  }
+
+  #globaldataTable, #regionaldataTable {
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin: 10px;
+    }
+    th,
+    td {
+      padding: 8px 12px;
+      border: 1px solid #ddd;
+      text-align: center;
+    }
+    th {
+      background-color: #f2f2f2;
+    }
+    .checked {
+      color: green;
+      font-weight: bold;
+    }
+  }
+</style>
+{% endblock %} {% block external_script %}
+<script src="../static/leaflet/leaflet.js"></script>
+<script src="../static/leaflet/leaflet.draw.js"></script>
+<!-- shapefile-js library -->
+<script src="https://unpkg.com/shapefile@0.6.6/dist/shapefile.js"></script>
+{% endblock %} {% block content %}
+<div id="map"></div>
+<!--<input type="file" id="fileInput" multiple />-->
+<!--<form action="#" onsubmit="return false;">
+  <div class="form-group">
+    <label for="fileinput">Select a shapefile to show in the map</label>
+    <input type="file" class="form-control-file" id="fileinput" />
+    <input
+      type="button"
+      class="btn btn-primary mb-2"
+      id="btnLoad"
+      value="Load"
+      onclick="loadFile();"
+    />
+  </div>
+</form>-->
+
+<div class="section">
+  <h3>Global Maps</h3>
+  <table id="globaldataTable">
+    <thead id="gdtHeader"></thead>
+    <tbody id="gdtBody"></tbody>
+  </table>
+  <!-- Download button -->
+  <button id="gdtDownloadBtn">Export as CSV</button>
+</div>
+
+<div class="section">
+  <h3>Regional Maps</h3>
+  <table id="regionaldataTable">
+    <thead id="rdtHeader"></thead>
+    <tbody id="rdtBody"></tbody>
+  </table>
+  <!-- Download button -->
+  <button id="rdtDownloadBtn">Export as CSV</button>
+</div>
+
+
+<script>
+  // Initialize the map
+  var osmUrl = "http://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",
+    osmAttrib =
+      '&copy; <a href="http://openstreetmap.org/copyright">OpenStreetMap</a> contributors',
+    osm = L.tileLayer(osmUrl, { maxZoom: 18, attribution: osmAttrib }),
+    map = new L.Map("map", {
+      center: new L.LatLng(51.505, -0.04),
+      zoom: 13,
+    }),
+    drawnItems = L.featureGroup().addTo(map);
+
+  L.control
+    .layers(
+      {
+        "Open Stree Map": osm.addTo(map),
+        Google: L.tileLayer(
+          "http://www.google.cn/maps/vt?lyrs=s@189&gl=cn&x={x}&y={y}&z={z}",
+          {
+            attribution: "Google",
+          }
+        ),
+        "Global Surface Water (2021)": L.tileLayer(
+          "https://storage.googleapis.com/global-surface-water/tiles2021/transitions/{z}/{x}/{y}.png",
+          {
+            format: "image/png",
+            maxZoom: 13,
+            errorTileUrl:
+              "https://storage.googleapis.com/global-surface-water/downloads_ancillary/blank.png",
+            attribution: "2016 EC JRC/Google",
+          }
+        ),
+        "Global Forest Cover (GFC) 2020": L.tileLayer(
+          "https://storage.googleapis.com/global-surface-water/tiles2021/transitions/{z}/{x}/{y}.png",
+          {
+            format: "image/png",
+            maxZoom: 13,
+            errorTileUrl:
+              "https://storage.googleapis.com/global-surface-water/downloads_ancillary/blank.png",
+            attribution: "2016 EC JRC/Google",
+          }
+        ),
+      },
+      { drawlayer: drawnItems },
+      { position: "topright", collapsed: false }
+    )
+    .addTo(map);
+
+  // 添加交互区域
+  // FeatureGroup is to store editable layers
+  var drawnItems = new L.FeatureGroup();
+  map.addLayer(drawnItems);
+  var drawControl = new L.Control.Draw({
+    draw: {
+      // only rectangle and marker allowed
+      polygon: false,
+      polyline: false,
+      circle: false,
+      circlemarker: false,
+    },
+    edit: {
+      featureGroup: drawnItems,
+    },
+  });
+  map.addControl(drawControl);
+
+  // 监听选中区域事件
+  map.on("draw:created", function (e) {
+    //console.log(e.layer.toGeoJSON())
+    map.addLayer(e.layer);
+    var type = e.layerType;
+    var url = "/api/maps/query/region";
+    var latlng, payload;
+    if (type === "marker") {
+      url = "/api/maps/query/point";
+      latlng = e.layer.getLatLng();
+      payload = { coords: latlng };
+    } else {
+      latlng = e.layer.getLatLngs()[0][0];
+      payload = { coords: e.layer.toGeoJSON()["geometry"] };
+    }
+    //console.log(payload, url, latlng)
+
+    // query
+    fetch(url, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(payload),
+    })
+      .then((data) => {
+        if (!data.ok) {
+          throw Error(data.status);
+        }
+        return data.json();
+      })
+      .then((data) => {
+        console.log(data);
+        // display
+        let popupContent = "<h3>Related HRLC Maps</h3>";
+        if (data.coordinate) {
+          const lat = data.coordinate.lat,
+            lon = data.coordinate.lon;
+          popupContent += `<p><span class="fa fa-map-marker"></span> ${Math.abs(
+            lat
+          ).toFixed(2)}°${lat > 0 ? "N" : "S"}, ${Math.abs(lon).toFixed(2)}°${
+            lon < 0 ? "W" : "E"
+          }</p>`;
+        }
+
+        let yearData = data.data;
+        if (yearData) {
+          popupContent += "<table>";
+          popupContent +=
+            "<thead><tr><th>Year</th><th>Map Count</th><th>Map Name</th></tr></thead>";
+          popupContent += "<tbody>";
+
+          for (let key in yearData) {
+            let mapList = yearData[key];
+            popupContent +=
+              "<tr><td>" +
+              key +
+              "</td><td>" +
+              mapList.length +
+              "</td><td>" +
+              mapList.join(", ") +
+              "</td></tr>";
+          }
+
+          popupContent += "</tbody></table>";
+        } else {
+          popupContent += "No matching HRLC Maps found.";
+        }
+
+        // 显示 popup
+        L.popup({
+          className: "custom-popup",
+          closeButton: false,
+        })
+          .setContent(popupContent)
+          .setLatLng(latlng)
+          .openOn(map);
+      });
+  });
+
+  /*function loadFile() {
+    input = document.getElementById("fileinput");
+    if (!input.files[0]) {
+      bodyAppend("p", "Please select a file before clicking 'Load'");
+    } else {
+      file = input.files[0];
+
+      fr = new FileReader();
+      fr.onload = receiveBinary;
+      fr.readAsArrayBuffer(file);
+    }
+    function receiveBinary() {
+      result = fr.result;
+      var shpfile = new L.Shapefile(result);
+      shpfile.addTo(mymap);
+    }
+  }*/
+  // 上传文件并显示在地图上
+  /*document
+    .getElementById("fileInput")
+    .addEventListener("change", function (event) {
+      var files = event.target.files;
+      if (files.length > 0) {
+        // Find the .shp and .dbf files from the uploaded files
+        var shpFile = Array.from(files).find((file) =>
+          file.name.endsWith(".shp")
+        );
+        var dbfFile = Array.from(files).find((file) =>
+          file.name.endsWith(".dbf")
+        );
+
+        if (shpFile && dbfFile) {
+          var reader = new FileReader();
+          reader.onload = function (e) {
+            shapefile
+              .open(shpFile)
+              .then((source) =>
+                source.read().then(function log(result) {
+                  if (result.done) return;
+                  var geoJsonData = {
+                    type: "FeatureCollection",
+                    features: [],
+                  };
+                  geoJsonData.features.push(result.value);
+                  L.geoJSON(geoJsonData).addTo(map);
+                  map.fitBounds(L.geoJSON(geoJsonData).getBounds());
+                  return source.read().then(log);
+                })
+              )
+              .catch((error) => console.error(error.stack));
+          };
+          reader.readAsArrayBuffer(shpFile);
+        } else {
+          alert("Please upload both .shp and .dbf files.");
+        }
+      }
+    });
+*/
+  // 请求渲染global maps信息
+  fetch("/api/maps/query/coverage/global")
+    .then((response) => response.json())
+    .then((jsData) => {
+      //console.log("Data:", jsData)
+      // Generate table header
+      const tableHeader = document.getElementById("gdtHeader");
+      const tableBody = document.getElementById("gdtBody");
+
+      // Create table headers dynamically based on the JSON data
+      const headerRow = document.createElement("tr");
+
+      // Add static headers
+      const staticHeaders = ["Name", "Accuracy", "Resolution", "CRS"];
+      staticHeaders.forEach((header) => {
+        const th = document.createElement("th");
+        th.innerText = header;
+        headerRow.appendChild(th);
+      });
+
+      // Add year columns
+      jsData.years.forEach((year) => {
+        const th = document.createElement("th");
+        th.innerText = year;
+        headerRow.appendChild(th);
+      });
+
+      tableHeader.appendChild(headerRow);
+
+      // Generate table body
+      jsData.data.forEach((item) => {
+        const row = document.createElement("tr");
+
+        // Add static data (name, accuracy, resolution, crs)
+        const nameCell = document.createElement("td");
+        nameCell.innerText = item.name;
+        row.appendChild(nameCell);
+
+        const accuracyCell = document.createElement("td");
+        accuracyCell.innerText = item.accuracy.join(", ");
+        row.appendChild(accuracyCell);
+
+        const resolutionCell = document.createElement("td");
+        resolutionCell.innerText = item.resolution;
+        row.appendChild(resolutionCell);
+
+        const crsCell = document.createElement("td");
+        crsCell.innerText = item.crs;
+        row.appendChild(crsCell);
+
+        // Add years as columns and check if they match
+        jsData.years.forEach((year) => {
+          const yearCell = document.createElement("td");
+
+          if (item.years.includes(year)) {
+            yearCell.innerHTML = "&#10003;"; // Add checkmark
+            yearCell.classList.add("checked");
+          }
+
+          row.appendChild(yearCell);
+        });
+
+        tableBody.appendChild(row);
+      });
+    });
+
+
+  // 请求渲染regional maps信息
+  fetch("/api/maps/query/coverage/regional")
+    .then((response) => response.json())
+    .then((jsData) => {
+      //console.log("Data:", jsData)
+      // Generate table header
+      const tableHeader = document.getElementById("rdtHeader");
+      const tableBody = document.getElementById("rdtBody");
+
+      // Create table headers dynamically based on the JSON data
+      const headerRow = document.createElement("tr");
+
+      // Add static headers
+      const staticHeaders = ["Name", "Accuracy", "Resolution", "CRS"];
+      staticHeaders.forEach((header) => {
+        const th = document.createElement("th");
+        th.innerText = header;
+        headerRow.appendChild(th);
+      });
+
+      // Add year columns
+      jsData.years.forEach((year) => {
+        const th = document.createElement("th");
+        th.innerText = year;
+        headerRow.appendChild(th);
+      });
+
+      tableHeader.appendChild(headerRow);
+
+      // Generate table body
+      jsData.data.forEach((item) => {
+        const row = document.createElement("tr");
+
+        // Add static data (name, accuracy, resolution, crs)
+        const nameCell = document.createElement("td");
+        nameCell.innerText = item.name;
+        row.appendChild(nameCell);
+
+        const accuracyCell = document.createElement("td");
+        accuracyCell.innerText = item.accuracy.join(", ");
+        row.appendChild(accuracyCell);
+
+        const resolutionCell = document.createElement("td");
+        resolutionCell.innerText = item.resolution;
+        row.appendChild(resolutionCell);
+
+        const crsCell = document.createElement("td");
+        crsCell.innerText = item.crs;
+        row.appendChild(crsCell);
+
+        // Add years as columns and check if they match
+        jsData.years.forEach((year) => {
+          const yearCell = document.createElement("td");
+
+          if (item.years.includes(year)) {
+            yearCell.innerHTML = "&#10003;"; // Add checkmark
+            yearCell.classList.add("checked");
+          }
+
+          row.appendChild(yearCell);
+        });
+
+        tableBody.appendChild(row);
+      });
+    });
+
+
+  // CSV export function
+  function downloadCSV(csv, filename) {
+    const csvFile = new Blob([csv], { type: "text/csv" });
+    const downloadLink = document.createElement("a");
+
+    downloadLink.download = filename;
+    downloadLink.href = window.URL.createObjectURL(csvFile);
+    downloadLink.style.display = "none";
+
+    document.body.appendChild(downloadLink);
+    downloadLink.click();
+    document.body.removeChild(downloadLink);
+  }
+  // Convert table data to CSV format
+  function tableToCSV(tableId) {
+    const csv = [];
+    const table = document.getElementById(tableId);
+    const rows = table.querySelectorAll("tr");
+
+    for (let i = 0; i < rows.length; i++) {
+      const row = [],
+        cols = rows[i].querySelectorAll("td, th");
+
+      for (let j = 0; j < cols.length; j++) {
+        row.push(cols[j].innerText);
+      }
+
+      csv.push(row.join(","));
+    }
+
+    return csv.join("\n");
+  }
+  // Event listener for download button
+  document
+    .getElementById("gdtDownloadBtn")
+    .addEventListener("click", function () {
+      const csv = tableToCSV("globaldataTable");
+      downloadCSV(csv, "table_globaldata.csv");
+    });
+  document
+    .getElementById("rdtDownloadBtn")
+    .addEventListener("click", function () {
+      const csv = tableToCSV("regionaldataTable");
+      downloadCSV(csv, "table_regionaldata.csv");
+    });
+</script>
+{% endblock %}
