@@ -124,7 +124,8 @@ Deploy Flask application to a web server.
 
 
 Directory Structure
-Copyopen-lulc-map/
+```
+open-lulc-map/
 ├── app/          # Flask application code
 │   ├── models.py   # Database model definitions
 │   ├── views.py    # API routes and view functions
@@ -137,6 +138,7 @@ Copyopen-lulc-map/
 ├── requirements.txt # Project dependencies
 ├── Dockerfile      # Docker build file (optional)
 └── README.md      # Project documentation file
+```
 Directory Description:
 
 lulc_map_project: Project root directory.
