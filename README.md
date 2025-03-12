@@ -1,6 +1,7 @@
 A LULC Map Collection Management System, using Python Flask + Leaflet framework.
 System Architecture and Design
-Copy+----------------------+
+```
++----------------------+
 |  Frontend (Flask + Leaflet) |
 +----------------------+
     ^                   ^
@@ -34,7 +35,7 @@ Copy+----------------------+
     |  Spatial Data
     v
 Function Breakdown
-
+```
 Frontend (Flask + Leaflet):
 
 Map View: Use Leaflet to create interactive maps, displaying the coverage area of LULC map collections.
