@@ -150,9 +150,3 @@ leaflet:  Contains Leaflet library files.
 
 templates: HTML templates directory.
 __init__.py:  Python module initialization file.
-    -   **`__config.py`:** 配置
--   **`db`:** 数据库配置和脚本目录。
-    -   **`init.sql`:**  数据库初始化脚本
--   **`requirements.txt`:** 项目依赖包清单文件。
--   **`Dockerfile`:**  用于构建 Docker 容器的构建文件（可选）。
--   **`README.md`:**  项目说明文件，描述项目概述、功能、使用方法、依赖等信息。
